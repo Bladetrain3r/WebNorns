@@ -16,6 +16,7 @@
       <div>
         <div class="name" id="pet-name">Bleb</div>
         <div class="sub"><span id="mood-label">content</span> · <span id="age-label">just hatched</span></div>
+        <div class="traits" id="traits"></div>
       </div>
     </div>
     <div class="stats">
@@ -54,7 +55,14 @@
         <div class="stage" id="stage">
           <div class="thing" id="obj-food" hidden title="pellet">🍪</div>
           <div class="thing" id="obj-ball" hidden title="ball">🎾</div>
-          <div class="thing" id="obj-nest" hidden title="nest">🛏️</div>
+          <div class="thing nest" id="obj-nest" hidden title="nest">
+            <svg viewBox="0 0 140 70" width="112" height="56" aria-label="nest">
+              <ellipse cx="70" cy="64" rx="60" ry="5" fill="#e7d5ea" opacity="0.8"></ellipse>
+              <rect x="10" y="30" width="120" height="28" rx="14" fill="#f7f1ea" stroke="#e4d4ea" stroke-width="3"></rect>
+              <rect x="18" y="22" width="32" height="18" rx="8" fill="#c3aef0"></rect>
+              <path d="M52,32 Q96,16 124,34 L116,50 Q80,40 54,48 Z" fill="#f8a8c6"></path>
+            </svg>
+          </div>
           <div class="thing hand" id="obj-hand" hidden title="hand">✋</div>
           <div class="bleb" id="bleb">
             <div class="bob idle" id="bob" data-anim="idle">
@@ -127,12 +135,18 @@
         <span><span class="action-label">Cool</span><span class="action-desc">cool the room</span></span>
       </button>
       <div class="spacer"></div>
-      <p class="note">Traits and other places come later. Park and Beach stay shut.</p>
+      <button type="button" class="action" id="btn-hatch">
+        <span class="icon" style="background:#e7f6ee">🥚</span>
+        <span><span class="action-label">Hatch</span><span class="action-desc">a new random norn</span></span>
+      </button>
+      <p class="note">Born with the norn, not a stat button. Park and Beach stay shut.</p>
     </aside>
   </div>
 </div>
 <script src="js/chem.js"></script>
 <script src="js/world.js"></script>
+<script src="js/genome.js"></script>
+<script src="js/face.js"></script>
 <script src="js/carry.js"></script>
 <script src="js/life.js"></script>
 <script src="js/bleb.js"></script>

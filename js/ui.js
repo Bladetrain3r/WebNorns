@@ -11,7 +11,7 @@
   };
 
   var TICK_MS = 700;
-  var sim = WebBleb.createSim({});
+  var sim = WebBleb.createSim({ hatch: true });
   var logEl = document.getElementById("log");
 
   function pushLog(ev) {
@@ -46,6 +46,7 @@
     document.getElementById("pet-name").textContent = view.name;
     document.getElementById("mood-label").textContent = view.mood.label;
     document.getElementById("age-label").textContent = ageLabel(Date.now() - view.born);
+    document.getElementById("traits").textContent = view.traitsText;
     document.getElementById("mood-emoji").textContent = view.mood.emoji;
     document.getElementById("status").textContent = view.status;
     document.getElementById("room-pill").textContent = "room " + view.ambient;
@@ -108,8 +109,9 @@
   bind("btn-pet", function () { return WebWorld.knobPet(sim.world, sim.bleb.x); });
   bind("btn-warm", function () { return WebWorld.knobWarm(sim.world); });
   bind("btn-cool", function () { return WebWorld.knobCool(sim.world); });
+  bind("btn-hatch", function () { return WebBleb.hatch(sim); });
 
-  pushLog({ msg: "Bleb blinks awake on the rug.", color: "#a8dcb0" });
+  pushLog({ msg: sim.bleb.name + " hatches on the rug. " + WebBleb.present(sim).traitsText + ".", color: "#a8dcb0" });
   setInterval(function () {
     var events = WebBleb.step(sim);
     for (var i = 0; i < events.length; i++) pushLog(events[i]);

@@ -3,10 +3,11 @@
 (function (root) {
   "use strict";
 
-  function runChecks(api, fs, path) {
+    function runChecks(api, fs, path) {
     var chem = api.chem;
     var world = api.world;
     var bleb = api.bleb;
+    var genome = api.genome;
     var lines = [];
     var ok = 0;
     var fail = 0;
@@ -35,7 +36,10 @@
     }
 
     function fresh(opts) {
-      var sim = bleb.createSim({ seed: 1, noise: 0 });
+      return placed(bleb.createSim({ seed: 1, noise: 0, genes: opts.genes }), opts);
+    }
+
+    function placed(sim, opts) {
       setDrives(sim, opts.hunger, opts.boredom, opts.loneliness, opts.sleepiness);
       if (opts.x != null) sim.bleb.x = opts.x;
       if (opts.food != null) sim.world.food = { kind: "food", x: opts.food, age: 0, life: 80, bites: 1 };
@@ -226,11 +230,13 @@
     for (var c = 0; c < 6; c++) bleb.step(carried);
     var packet = bleb.exportState(carried);
     var packed = JSON.stringify(packet);
-    check("creature packet is plain and compact", packet.v === 1 && !packet.world && packed.length < 2000 && Object.keys(packet.body.chem).length < 20);
+    check("creature packet is plain and compact", packet.v === 1 && !packet.world && !packet.traits && packed.length < 2000 && Object.keys(packet.body.chem).length < 20);
+    check("genome is seven bytes", packet.g.length === 7 && packet.g.join() === "128,128,128,128,128,128,128");
     var restored = bleb.createSim({ seed: 9, noise: 0 });
     restored.world.ambient = 77;
     bleb.importState(restored, JSON.parse(packed));
     check("packet round-trips the body", restored.bleb.body.conc[chem.HUNGER] === carried.bleb.body.conc[chem.HUNGER] && restored.bleb.body.conc[chem.BOREDOM] === carried.bleb.body.conc[chem.BOREDOM] && restored.bleb.body.biotick === carried.bleb.body.biotick && restored.bleb.x === carried.bleb.x);
+    check("packet round-trips the genome", restored.bleb.genome.join() === carried.bleb.genome.join() && restored.bleb.traits.refuseEatBelow === carried.bleb.traits.refuseEatBelow);
     check("packet leaves the room behind", restored.world.food === null && restored.world.ambient === 77 && restored.lifecycle === "stasis");
     var liveHunger = carried.bleb.body.conc[chem.HUNGER];
     packet.body.chem[chem.HUNGER] = liveHunger === 3 ? 4 : 3;
@@ -252,11 +258,102 @@
     bleb.step(unnamed);
     check("an unplugged mortality does not kill", unnamed.phase === "awake" && unnamed.bleb.body.biotick === 1);
 
+    var mid = genome.express(genome.neutral());
+    check("neutral genome keeps the even thresholds", mid.refuseEatBelow === 48 && mid.playMinBoredom === 36 && mid.sleepMin === 50 && mid.companyMin === 33 && mid.comfort.low === 76 && mid.comfort.high === 178 && mid.noveltyFromPet === 8);
+    check("neutral pressure stays on the page pace", mid.pressure.hunger > 0.34 && mid.pressure.hunger < 0.36 && mid.pressure.sleepiness > 0.21 && mid.pressure.sleepiness < 0.23);
+    check("an unhatched sim stays even", bleb.createSim({ seed: 1, noise: 0 }).bleb.genome.join() === "128,128,128,128,128,128,128");
+
+    var dainty = fresh({ genes: [0, 128, 128, 128, 128, 128, 128], hunger: 60, boredom: 5, loneliness: 5, sleepiness: 5, x: 40, food: 40 });
+    var daintyEv = bleb.step(dainty);
+    check("a dainty norn refuses a mild hunger", dainty.bleb.body.conc[chem.FOOD] === 0 && /too full/.test(msgs(daintyEv)));
+    var greedy = fresh({ genes: [255, 128, 128, 128, 128, 128, 128], hunger: 40, boredom: 5, loneliness: 5, sleepiness: 5, x: 40, food: 40 });
+    var greedyEv = bleb.step(greedy);
+    check("a greedy norn eats sooner", greedy.bleb.body.conc[chem.FOOD] > 0 && /chewing/.test(msgs(greedyEv)));
+
+    var solemn = fresh({ genes: [128, 0, 128, 128, 128, 128, 128], hunger: 10, boredom: 40, loneliness: 10, sleepiness: 10, x: 40, ball: 40 });
+    var solemnEv = bleb.step(solemn);
+    check("a solemn norn leaves the ball", solemn.bleb.body.conc[chem.NOVELTY] === 0 && /glances at the ball/.test(msgs(solemnEv)));
+    var playful = fresh({ genes: [128, 255, 128, 128, 128, 128, 128], hunger: 10, boredom: 40, loneliness: 10, sleepiness: 10, x: 40, ball: 40 });
+    var playfulEv = bleb.step(playful);
+    check("a playful norn bats a mild boredom", playful.bleb.verb === "play" && playful.bleb.body.conc[chem.BOREDOM] < 40 && /bats the ball/.test(msgs(playfulEv)));
+
+    var clingy = fresh({ genes: [128, 128, 255, 128, 128, 128, 128], hunger: 10, boredom: 10, loneliness: 40, sleepiness: 10, x: 40 });
+    world.knobPet(clingy.world, clingy.bleb.x);
+    var clingEv = bleb.step(clingy);
+    check("a clingy norn accepts a mild loneliness", /leans into/.test(msgs(clingEv)) && clingy.bleb.body.conc[chem.COMPANY] > 0);
+    var indie = fresh({ genes: [128, 128, 0, 128, 128, 128, 128], hunger: 10, boredom: 10, loneliness: 40, sleepiness: 10, x: 40 });
+    world.knobPet(indie.world, indie.bleb.x);
+    bleb.step(indie);
+    check("an independent norn skips a mild loneliness", indie.bleb.body.conc[chem.COMPANY] === 0);
+
+    function warmed(gene) {
+      var sim = fresh({ genes: [128, 128, 128, gene, 128, 128, 128], hunger: 10, boredom: 10, loneliness: 10, sleepiness: 40, x: 40 });
+      sim.world.ambient = 0;
+      sim.bleb.body.conc[chem.HEAT] = 200;
+      return sim;
+    }
+    var coolLove = warmed(0);
+    var warmLove = warmed(255);
+    bleb.step(coolLove);
+    bleb.step(warmLove);
+    check("cool-loving feels heat that warm-loving tolerates", coolLove.bleb.traits.comfort.high < 200 && warmLove.bleb.traits.comfort.high > 200 && coolLove.bleb.body.conc[chem.SLEEPINESS] > warmLove.bleb.body.conc[chem.SLEEPINESS]);
+
+    function metabolise(gene) {
+      return placed(bleb.createSim({ seed: 3, noise: 0, genes: [128, 128, 128, 128, gene, 128, 128] }), { hunger: 0, boredom: 0, loneliness: 0, sleepiness: 0, x: 40 });
+    }
+    var delicate = metabolise(255);
+    var hardy = metabolise(0);
+    for (var meta = 0; meta < 30; meta++) {
+      bleb.step(delicate);
+      bleb.step(hardy);
+    }
+    check("a delicate metabolism hungers faster than a hardy one", delicate.bleb.body.conc[chem.HUNGER] > hardy.bleb.body.conc[chem.HUNGER]);
+
+    var drowsy = fresh({ genes: [128, 128, 128, 128, 128, 255, 128], hunger: 10, boredom: 10, loneliness: 10, sleepiness: 45, x: 40, nest: 40 });
+    var drowsyEv = bleb.step(drowsy);
+    check("a drowsy norn takes a mild sleepiness to the nest", drowsy.bleb.body.asleep > 0 && /curls up/.test(msgs(drowsyEv)));
+    var alertNorn = fresh({ genes: [128, 128, 128, 128, 128, 0, 128], hunger: 10, boredom: 10, loneliness: 10, sleepiness: 45, x: 40, nest: 40 });
+    var alertEv = bleb.step(alertNorn);
+    check("an alert norn refuses that same nest", alertNorn.bleb.body.asleep === 0 && /isn't sleepy/.test(msgs(alertEv)));
+
+    var quiet = fresh({ genes: [128, 128, 128, 128, 128, 128, 0], hunger: 10, boredom: 40, loneliness: 160, sleepiness: 10, x: 40 });
+    var chatty = fresh({ genes: [128, 128, 128, 128, 128, 128, 255], hunger: 10, boredom: 40, loneliness: 160, sleepiness: 10, x: 40 });
+    world.knobPet(quiet.world, quiet.bleb.x);
+    world.knobPet(chatty.world, chatty.bleb.x);
+    bleb.step(quiet);
+    bleb.step(chatty);
+    check("a chatty norn takes more novelty from a hand", chatty.bleb.body.conc[chem.BOREDOM] < quiet.bleb.body.conc[chem.BOREDOM]);
+
+    var parent = [200, 10, 128, 255, 0, 90, 140];
+    var child = genome.inherit(parent.slice(), bleb.createSim({ seed: 2, noise: 0 }).rng);
+    var near = child.length === 7;
+    for (var gene = 0; gene < 7; gene++) {
+      if (child[gene] < 0 || child[gene] > 255 || Math.abs(child[gene] - parent[gene]) > 8) near = false;
+    }
+    check("a child genome stays near its parent", near && parent.join() === "200,10,128,255,0,90,140");
+
+    var egg = fresh({ hunger: 255, boredom: 255, loneliness: 255, sleepiness: 255, x: 40, food: 40 });
+    egg.world.ambient = 63;
+    var hatched = bleb.hatch(egg);
+    check("hatch is a new body, not a drive write", egg.bleb.body.conc[chem.HUNGER] === bleb.BIRTH.hunger && egg.bleb.body.conc[chem.BOREDOM] === bleb.BIRTH.boredom && egg.bleb.body.conc[chem.LONELINESS] === bleb.BIRTH.loneliness && egg.world.food === null && egg.world.ambient === 63 && /hatches/.test(hatched.msg));
+    var rolled = egg.bleb.genome;
+    var rolledOk = rolled.length === 7 && rolled.join() !== "128,128,128,128,128,128,128";
+    for (var byte = 0; byte < rolled.length; byte++) if (rolled[byte] < 0 || rolled[byte] > 255) rolledOk = false;
+    check("hatch rolls a genome", rolledOk);
+    check("traits show as words, not bars", bleb.present(egg).traitsText && bleb.present(bleb.createSim({ seed: 1, noise: 0 })).traitsText === "even-tempered");
+
     if (fs && path) {
       var worldSrc = fs.readFileSync(path.join(__dirname, "world.js"), "utf8");
       var uiSrc = fs.readFileSync(path.join(__dirname, "ui.js"), "utf8");
       check("world.js never emits or touches concentrations", !/\.emit\(/.test(worldSrc) && !/\.conc\[/.test(worldSrc) && !/asleep/.test(worldSrc));
       check("ui.js never emits or touches concentrations", !/\.emit\(/.test(uiSrc) && !/\.conc\[/.test(uiSrc));
+      var names = ["chem.js", "world.js", "genome.js", "face.js", "carry.js", "life.js", "bleb.js", "ui.js", "checks.js"];
+      var tooBig = "";
+      for (var f = 0; f < names.length; f++) {
+        var linesIn = fs.readFileSync(path.join(__dirname, names[f]), "utf8").split("\n").length;
+        if (linesIn > 500) tooBig += names[f] + " " + linesIn + " ";
+      }
+      check("js files stay under 500 lines", tooBig === "");
     }
 
     lines.push("");
@@ -268,13 +365,14 @@
     var result = runChecks({
       chem: require("./chem.js"),
       world: require("./world.js"),
-      bleb: require("./bleb.js")
+      bleb: require("./bleb.js"),
+      genome: require("./genome.js")
     }, require("fs"), require("path"));
     for (var i = 0; i < result.lines.length; i++) console.log(result.lines[i]);
     process.exit(result.fail ? 1 : 0);
   } else if (typeof window !== "undefined") {
     window.runWebagotchiChecks = function () {
-      return runChecks({ chem: window.WebChem, world: window.WebWorld, bleb: window.WebBleb }, null, null);
+      return runChecks({ chem: window.WebChem, world: window.WebWorld, bleb: window.WebBleb, genome: window.WebGenome }, null, null);
     };
   }
 })(typeof globalThis !== "undefined" ? globalThis : this);

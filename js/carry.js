@@ -1,10 +1,11 @@
 /* Compact creature packet. A later bookmark can encode this in a URL
    fragment. The room stays behind: a link carries the norn, not the pellet. */
 (function (root, factory) {
-  var api = factory();
+  var Genome = root.WebGenome || (typeof require === "function" ? require("./genome.js") : null);
+  var api = factory(Genome);
   if (typeof module === "object" && module.exports) module.exports = api;
   else root.WebCarry = api;
-})(typeof globalThis !== "undefined" ? globalThis : this, function () {
+})(typeof globalThis !== "undefined" ? globalThis : this, function (Genome) {
   "use strict";
 
   function round4(n) {
@@ -44,7 +45,7 @@
       x: bleb.x,
       life: sim.lifecycle || "stasis",
       phase: sim.phase || "awake",
-      traits: clone(bleb.traits),
+      g: Genome.normalize(bleb.genome),
       body: {
         tick: body.biotick,
         asleep: body.asleep,
@@ -66,7 +67,13 @@
     bleb.born = packet.born || bleb.born;
     bleb.x = packet.x == null ? bleb.x : packet.x;
     bleb.heatAcc = packet.heatAcc || 0;
-    bleb.traits = clone(packet.traits || bleb.traits);
+    if (packet.g) {
+      bleb.genome = Genome.normalize(packet.g);
+      bleb.traits = Genome.express(bleb.genome);
+    } else if (packet.traits) {
+      bleb.traits = clone(packet.traits);
+      bleb.genome = Genome.normalize(packet.traits.genes || Genome.neutral());
+    }
     bleb.sig = "";
     bleb.verb = "idle";
     bleb.detail = "content";
@@ -88,11 +95,13 @@
       var at = Number(index);
       if (at > 0 && at < 256) body.conc[at] = chem[index];
     }
-    var pressure = (packet.body && packet.body.pressure) || bleb.traits.pressure || {};
+    var expressed = bleb.traits.pressure || {};
+    var saved = (packet.body && packet.body.pressure) || {};
     var name;
     for (name in body.pressure) {
       if (!Object.prototype.hasOwnProperty.call(body.pressure, name)) continue;
-      if (pressure[name] != null) body.pressure[name] = pressure[name];
+      if (expressed[name] != null) body.pressure[name] = expressed[name];
+      if (saved[name] != null) body.pressure[name] = saved[name];
     }
     var acc = (packet.body && packet.body.acc) || {};
     for (index in acc) {
