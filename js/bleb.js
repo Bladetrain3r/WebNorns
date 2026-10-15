@@ -3,10 +3,12 @@
 (function (root, factory) {
   var Chem = root.WebChem || (typeof require === "function" ? require("./chem.js") : null);
   var World = root.WebWorld || (typeof require === "function" ? require("./world.js") : null);
-  var api = factory(Chem, World);
+  var Carry = root.WebCarry || (typeof require === "function" ? require("./carry.js") : null);
+  var Life = root.WebLife || (typeof require === "function" ? require("./life.js") : null);
+  var api = factory(Chem, World, Carry, Life);
   if (typeof module === "object" && module.exports) module.exports = api;
   else root.WebBleb = api;
-})(typeof globalThis !== "undefined" ? globalThis : this, function (Chem, World) {
+})(typeof globalThis !== "undefined" ? globalThis : this, function (Chem, World, Carry, Life) {
   "use strict";
 
   var REACH = 10;
@@ -106,7 +108,11 @@ pressure: { hunger: 0.35, boredom: 0.35, loneliness: 0.25, sleepiness: 0.22 },
       world: World.createWorld(),
       bleb: createBleb(),
       rng: mulberry32(seed),
-      noise: opts.noise == null ? 0.08 : opts.noise
+      noise: opts.noise == null ? 0.08 : opts.noise,
+      // "stasis" is the default life. "mortal" is not registered; unknown
+      // names fall back to stasis, so nothing here ends the creature.
+      lifecycle: "stasis",
+      phase: "awake"
     };
   }
 
@@ -375,8 +381,20 @@ pressure: { hunger: 0.35, boredom: 0.35, loneliness: 0.25, sleepiness: 0.22 },
     if (pct > 38) flags.cold = false;
   }
 
+  function applyLife(sim, events) {
+    var report = Life.afterTick(sim);
+    var extra = report.events || [];
+    for (var i = 0; i < extra.length; i++) events.push(extra[i]);
+  }
+
   function step(sim) {
     var events = [];
+    // Dormant or dead is whatever the policy last reported. This slice's
+    // policy never reports either; the branch is the plug for stasis and mortality.
+    if (sim.phase === "dormant" || sim.phase === "dead") {
+      applyLife(sim, events);
+      return events;
+    }
     var bleb = sim.bleb;
     var body = bleb.body;
     var wasAsleep = body.asleep > 0;
@@ -413,6 +431,7 @@ pressure: { hunger: 0.35, boredom: 0.35, loneliness: 0.25, sleepiness: 0.22 },
 
     var expired = World.ageWorld(sim.world);
     for (var i = 0; i < expired.length; i++) events.push(expired[i]);
+    applyLife(sim, events);
     return events;
   }
 
@@ -524,6 +543,8 @@ pressure: { hunger: 0.35, boredom: 0.35, loneliness: 0.25, sleepiness: 0.22 },
     createSim: createSim,
     step: step,
     present: present,
-    senseWorld: senseWorld
+    senseWorld: senseWorld,
+    exportState: Carry.exportState,
+    importState: Carry.importState
   };
 });

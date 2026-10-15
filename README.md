@@ -47,5 +47,6 @@ Or open `test.html` in a browser. The checks cover decay and reaction arithmetic
 - `js/bleb.js` — sense, choose, act
 - `js/ui.js` — the page
 - `docs/DENIZENS.md`, `docs/DESIGN.md` — the design notes this slice follows
+- `docs/AUDIENCE_AND_LIFECYCLE.md`, `docs/WEEKLY_ROUTINE.md` — later notes, not built
 
-Traits and other rooms are left as seams (`traits` on the bleb, `place` on the world). They are not built yet.
+Traits and other rooms are seams (`traits` on the bleb, `place` on the world). Two more are in place and unused: `exportState` / `importState` pack the creature (not the room) for a later bookmark, and each tick asks a lifecycle policy. The only policy is stasis, which does not end the creature. Mortality is not plugged in.

@@ -222,6 +222,36 @@
     var view = bleb.present(fed);
     check("bars are need readouts", view.bars.hunger === fed.bleb.body.needs().hunger && view.bars.social === fed.bleb.body.needs().social && view.bars.temp >= 0);
 
+    var carried = fresh({ hunger: 140, boredom: 40, loneliness: 55, sleepiness: 70, x: 22, food: 80 });
+    for (var c = 0; c < 6; c++) bleb.step(carried);
+    var packet = bleb.exportState(carried);
+    var packed = JSON.stringify(packet);
+    check("creature packet is plain and compact", packet.v === 1 && !packet.world && packed.length < 2000 && Object.keys(packet.body.chem).length < 20);
+    var restored = bleb.createSim({ seed: 9, noise: 0 });
+    restored.world.ambient = 77;
+    bleb.importState(restored, JSON.parse(packed));
+    check("packet round-trips the body", restored.bleb.body.conc[chem.HUNGER] === carried.bleb.body.conc[chem.HUNGER] && restored.bleb.body.conc[chem.BOREDOM] === carried.bleb.body.conc[chem.BOREDOM] && restored.bleb.body.biotick === carried.bleb.body.biotick && restored.bleb.x === carried.bleb.x);
+    check("packet leaves the room behind", restored.world.food === null && restored.world.ambient === 77 && restored.lifecycle === "stasis");
+    var liveHunger = carried.bleb.body.conc[chem.HUNGER];
+    packet.body.chem[chem.HUNGER] = liveHunger === 3 ? 4 : 3;
+    check("export does not share the live chemistry", carried.bleb.body.conc[chem.HUNGER] === liveHunger);
+
+    var ruined = fresh({ hunger: 255, boredom: 255, loneliness: 255, sleepiness: 255, x: 40 });
+    for (var r = 0; r < 20; r++) bleb.step(ruined);
+    check("stasis does not end a ruined creature", ruined.phase === "awake" && ruined.lifecycle === "stasis" && ruined.bleb.body.biotick === 20);
+
+    var paused = fresh({ hunger: 80, boredom: 20, loneliness: 20, sleepiness: 20, x: 40 });
+    paused.phase = "dormant";
+    var pausedTick = paused.bleb.body.biotick;
+    bleb.step(paused);
+    check("a dormant phase skips chemistry", paused.bleb.body.biotick === pausedTick);
+    check("stasis returns a paused creature to awake", paused.phase === "awake");
+
+    var unnamed = fresh({ hunger: 80, boredom: 20, loneliness: 20, sleepiness: 20, x: 40 });
+    unnamed.lifecycle = "mortal";
+    bleb.step(unnamed);
+    check("an unplugged mortality does not kill", unnamed.phase === "awake" && unnamed.bleb.body.biotick === 1);
+
     if (fs && path) {
       var worldSrc = fs.readFileSync(path.join(__dirname, "world.js"), "utf8");
       var uiSrc = fs.readFileSync(path.join(__dirname, "ui.js"), "utf8");
