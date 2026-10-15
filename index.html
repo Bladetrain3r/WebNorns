@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Webagotchi</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800;900&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/room.css">
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="who">
+      <div class="mood-chip" id="mood-emoji" aria-hidden="true">🙂</div>
+      <div>
+        <div class="name" id="pet-name">Bleb</div>
+        <div class="sub"><span id="mood-label">content</span> · <span id="age-label">just hatched</span></div>
+      </div>
+    </div>
+    <div class="stats">
+      <div class="stat" title="How fed Bleb is. Rises after digestion, not when you click Feed.">
+        <div class="stat-top"><span>Hunger</span><span class="num" id="num-hunger">0%</span></div>
+        <div class="track"><div class="fill" id="fill-hunger"></div><div class="stripes"></div></div>
+      </div>
+      <div class="stat" title="How rested Bleb is. Rises while Bleb is actually asleep.">
+        <div class="stat-top"><span>Energy</span><span class="num" id="num-energy">0%</span></div>
+        <div class="track"><div class="fill" id="fill-energy"></div><div class="stripes"></div></div>
+      </div>
+      <div class="stat" title="How amused Bleb is. Rises only if Bleb chooses to play.">
+        <div class="stat-top"><span>Fun</span><span class="num" id="num-fun">0%</span></div>
+        <div class="track"><div class="fill" id="fill-fun"></div><div class="stripes"></div></div>
+      </div>
+      <div class="stat" title="How accompanied Bleb feels. Rises only if Bleb accepts a hand.">
+        <div class="stat-top"><span>Social</span><span class="num" id="num-social">0%</span></div>
+        <div class="track"><div class="fill" id="fill-social"></div><div class="stripes"></div></div>
+      </div>
+      <div class="stat" title="How warm Bleb feels. Follows the room; Warm and Cool do not set it.">
+        <div class="stat-top"><span>Temp</span><span class="num" id="num-temp">0%</span></div>
+        <div class="track"><div class="fill" id="fill-temp"></div><div class="stripes"></div></div>
+      </div>
+    </div>
+  </header>
+
+  <div class="main">
+    <div class="scene-col">
+      <div class="scene">
+        <div class="chips">
+          <div class="chip">Home</div>
+          <div class="chip soon">Park · soon</div>
+          <div class="chip soon">Beach · soon</div>
+          <div class="chip" id="room-pill">room 50</div>
+        </div>
+        <div class="stage" id="stage">
+          <div class="thing" id="obj-food" hidden title="pellet">🍪</div>
+          <div class="thing" id="obj-ball" hidden title="ball">🎾</div>
+          <div class="thing" id="obj-nest" hidden title="nest">🛏️</div>
+          <div class="thing hand" id="obj-hand" hidden title="hand">✋</div>
+          <div class="bleb" id="bleb">
+            <div class="bob idle" id="bob" data-anim="idle">
+              <svg viewBox="0 0 200 185" width="168" height="155" aria-label="Bleb">
+                <ellipse cx="100" cy="172" rx="62" ry="9" fill="#dcc9e0" opacity="0.55"></ellipse>
+                <g id="shiver">
+                  <ellipse class="skin" cx="33" cy="100" rx="15" ry="10" transform="rotate(24 33 100)"></ellipse>
+                  <ellipse class="skin" cx="167" cy="100" rx="15" ry="10" transform="rotate(-24 167 100)"></ellipse>
+                  <ellipse class="skin" cx="76" cy="160" rx="14" ry="11"></ellipse>
+                  <ellipse class="skin" cx="124" cy="160" rx="14" ry="11"></ellipse>
+                  <ellipse class="skin" cx="100" cy="102" rx="64" ry="60"></ellipse>
+                  <ellipse cx="78" cy="70" rx="20" ry="12" fill="#ffffff" opacity="0.25" transform="rotate(-18 78 70)"></ellipse>
+                  <ellipse id="cheek-l" cx="68" cy="118" rx="9" ry="6" fill="#f791b5" opacity="0.35"></ellipse>
+                  <ellipse id="cheek-r" cx="132" cy="118" rx="9" ry="6" fill="#f791b5" opacity="0.35"></ellipse>
+                  <g id="eyes-open" style="transform-origin:100px 88px; animation: blink 4.6s ease-in-out infinite;">
+                    <circle cx="79" cy="88" r="12" fill="#332b3a"></circle>
+                    <circle cx="121" cy="88" r="12" fill="#332b3a"></circle>
+                    <circle cx="83" cy="84" r="4" fill="#ffffff"></circle>
+                    <circle cx="125" cy="84" r="4" fill="#ffffff"></circle>
+                  </g>
+                  <g id="eyes-sleep" hidden>
+                    <path d="M68,88 Q79,96 90,88" stroke="#332b3a" stroke-width="4" fill="none" stroke-linecap="round"></path>
+                    <path d="M110,88 Q121,96 132,88" stroke="#332b3a" stroke-width="4" fill="none" stroke-linecap="round"></path>
+                  </g>
+                  <path id="mouth" d="M92,116 Q100,123 108,116" stroke="#332b3a" stroke-width="4" fill="none" stroke-linecap="round"></path>
+                  <ellipse id="tear" cx="66" cy="104" rx="4" ry="6" fill="#8fc7ee" hidden style="animation:drip 1.6s ease-in infinite;"></ellipse>
+                  <ellipse id="sweat" cx="146" cy="52" rx="5" ry="8" fill="#8fc7ee" hidden style="animation:drip 1.4s ease-in infinite;"></ellipse>
+                </g>
+                <g id="zzz" hidden>
+                  <text x="146" y="46" font-family="Nunito, sans-serif" font-weight="900" font-size="20" fill="#a99ac9" style="animation:floatz 2.4s ease-out infinite;">z</text>
+                  <text x="158" y="32" font-family="Nunito, sans-serif" font-weight="900" font-size="14" fill="#c3b6dd" style="animation:floatz 2.4s ease-out .8s infinite;">z</text>
+                </g>
+              </svg>
+            </div>
+          </div>
+        </div>
+        <div class="status" id="status">Bleb is looking around.</div>
+      </div>
+      <div class="log-card">
+        <div class="log-title">● pet log</div>
+        <div id="log" aria-live="polite"></div>
+      </div>
+    </div>
+
+    <aside>
+      <div class="actions-label">Actions</div>
+      <p class="hint">Knobs on the room. Bleb decides what to do with them.</p>
+      <button type="button" class="action" id="btn-feed">
+        <span class="icon" style="background:#fdeecd">🍔</span>
+        <span><span class="action-label">Feed</span><span class="action-desc">place a pellet</span></span>
+      </button>
+      <button type="button" class="action" id="btn-play">
+        <span class="icon" style="background:#fbdce9">🎾</span>
+        <span><span class="action-label">Play</span><span class="action-desc">toss a ball</span></span>
+      </button>
+      <button type="button" class="action" id="btn-sleep">
+        <span class="icon" style="background:#e8def8">🌙</span>
+        <span><span class="action-label">Sleep</span><span class="action-desc">offer a nest</span></span>
+      </button>
+      <button type="button" class="action" id="btn-pet">
+        <span class="icon" style="background:#fbdce9">💝</span>
+        <span><span class="action-label">Pet</span><span class="action-desc">offer a hand</span></span>
+      </button>
+      <button type="button" class="action" id="btn-warm">
+        <span class="icon" style="background:#fde3d5">🔥</span>
+        <span><span class="action-label">Warm</span><span class="action-desc">warm the room</span></span>
+      </button>
+      <button type="button" class="action" id="btn-cool">
+        <span class="icon" style="background:#d9ecf8">❄️</span>
+        <span><span class="action-label">Cool</span><span class="action-desc">cool the room</span></span>
+      </button>
+      <div class="spacer"></div>
+      <p class="note">Traits and other places come later. Park and Beach stay shut.</p>
+    </aside>
+  </div>
+</div>
+<script src="js/chem.js"></script>
+<script src="js/world.js"></script>
+<script src="js/bleb.js"></script>
+<script src="js/ui.js"></script>
+</body>
+</html>

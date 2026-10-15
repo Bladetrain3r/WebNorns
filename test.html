@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Webagotchi checks</title>
+<style>
+  body { margin: 0; background: #faf5ee; color: #4a4152; font-family: "IBM Plex Mono", ui-monospace, monospace; }
+  pre { padding: 24px; white-space: pre-wrap; }
+  .fail { color: #9a3d4a; }
+</style>
+</head>
+<body>
+<pre id="out">running…</pre>
+<script src="js/chem.js"></script>
+<script src="js/world.js"></script>
+<script src="js/bleb.js"></script>
+<script src="js/checks.js"></script>
+<script>
+  var result = window.runWebagotchiChecks();
+  var out = document.getElementById("out");
+  out.textContent = result.lines.join("\n");
+  if (result.fail) out.className = "fail";
+  document.title = result.fail ? "checks failed" : "checks passed";
+</script>
+</body>
+</html>
