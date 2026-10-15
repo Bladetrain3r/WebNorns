@@ -1,4 +1,4 @@
-/* Paint the room. Buttons call world knobs only; the tick calls bleb.step. */
+/* Paint the room. Knobs stay on the world. A link loads a saved body. */
 (function () {
   "use strict";
 
@@ -11,8 +11,13 @@
   };
 
   var TICK_MS = 700;
-  var sim = WebBleb.createSim({ hatch: true });
+  var MUTE = "#8d80a0";
+  var GOOD = "#a8dcb0";
+  var sim = WebBleb.createSim({});
   var logEl = document.getElementById("log");
+  var lastSave = 0;
+  var holdLink = false;
+  var pending = null;
 
   function pushLog(ev) {
     if (!ev || !ev.msg) return;
@@ -96,6 +101,83 @@
     document.getElementById("obj-ball").classList.toggle("wobble", view.verb === "play");
   }
 
+  function packet() {
+    return WebBleb.exportState(sim);
+  }
+
+  function showSeed(snap) {
+    var input = document.getElementById("seed-code");
+    if (document.activeElement === input) return;
+    var code = WebLink.encodeSeed(snap);
+    input.value = code || "";
+  }
+
+  function persist(force) {
+    if (holdLink && !force) return;
+    var now = Date.now();
+    if (!WebLink.due(now, lastSave, force)) return;
+    lastSave = now;
+    var snap = packet();
+    WebLink.saveLocal(localStorage, snap);
+    showSeed(snap);
+    var next = "#" + WebLink.encodeFragment(snap);
+    if (location.hash !== next) history.replaceState(null, "", next);
+  }
+
+  function hideOffer() {
+    pending = null;
+    holdLink = false;
+    document.getElementById("offer").hidden = true;
+  }
+
+  function showOffer(kind, localName, linkName) {
+    pending = kind;
+    holdLink = true;
+    var text = kind.kind === "seed"
+      ? "The seed names " + linkName + ". " + localName + " is already here."
+      : "This link carries " + linkName + ". " + localName + " is already saved here.";
+    document.getElementById("offer-text").textContent = text;
+    document.getElementById("offer-keep").textContent = "Keep " + localName;
+    document.getElementById("offer-bring").textContent = "Bring " + linkName + " in";
+    document.getElementById("offer").hidden = false;
+  }
+
+  function arriveFrom(snap, line) {
+    WebBleb.importState(sim, snap);
+    pushLog({ msg: line, color: GOOD });
+    persist(true);
+  }
+
+  function boot() {
+    var stored = WebLink.loadLocal(localStorage);
+    var incoming = WebLink.decodeFragment(location.hash);
+    var plan = WebLink.decideBoot(stored, incoming);
+    if (plan.warn) {
+      pushLog({
+        msg: plan.action === "hatch"
+          ? "That link didn't carry a norn."
+          : "That link didn't carry a norn. Keeping the one here.",
+        color: MUTE
+      });
+    }
+    if (plan.action === "hatch") {
+      pushLog(WebBleb.hatch(sim));
+      persist(true);
+      return;
+    }
+    if (plan.action === "offer") {
+      WebBleb.importState(sim, plan.local);
+      showOffer({ kind: "link", packet: plan.link }, plan.local.name, plan.link.name);
+      showSeed(packet());
+      pushLog({ msg: plan.local.name + " is here. A link has someone else.", color: MUTE });
+      return;
+    }
+    var line = plan.from === "link"
+      ? plan.packet.name + " arrives from the link."
+      : plan.packet.name + " is back, just as you left them.";
+    arriveFrom(plan.packet, line);
+  }
+
   function bind(id, fn) {
     document.getElementById(id).addEventListener("click", function () {
       pushLog(fn());
@@ -109,13 +191,96 @@
   bind("btn-pet", function () { return WebWorld.knobPet(sim.world, sim.bleb.x); });
   bind("btn-warm", function () { return WebWorld.knobWarm(sim.world); });
   bind("btn-cool", function () { return WebWorld.knobCool(sim.world); });
-  bind("btn-hatch", function () { return WebBleb.hatch(sim); });
+  bind("btn-hatch", function () {
+    hideOffer();
+    var ev = WebBleb.hatch(sim);
+    persist(true);
+    return ev;
+  });
 
-  pushLog({ msg: sim.bleb.name + " hatches on the rug. " + WebBleb.present(sim).traitsText + ".", color: "#a8dcb0" });
+  function copyText(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(text);
+    }
+    return new Promise(function (resolve, reject) {
+      var area = document.createElement("textarea");
+      area.value = text;
+      document.body.appendChild(area);
+      area.select();
+      try {
+        var ok = document.execCommand("copy");
+        document.body.removeChild(area);
+        if (ok) resolve();
+        else reject(new Error("copy"));
+      } catch (err) {
+        document.body.removeChild(area);
+        reject(err);
+      }
+    });
+  }
+
+  document.getElementById("btn-share").addEventListener("click", function () {
+    var snap = packet();
+    var url = WebLink.withFragment(location.href, WebLink.encodeFragment(snap));
+    var code = WebLink.encodeSeed(snap);
+    var note = document.getElementById("share-note");
+    showSeed(snap);
+    copyText(url).then(function () {
+      note.textContent = code ? "Link copied. Seed: " + code : "Link copied.";
+    }, function () {
+      note.textContent = code
+        ? "Seed: " + code + ". Copy the address if the link stayed put."
+        : "Copy the address bar to share this norn.";
+    });
+  });
+
+  document.getElementById("seed-code").addEventListener("keydown", function (ev) {
+    if (ev.key !== "Enter") return;
+    ev.preventDefault();
+    var got = WebLink.decodeSeed(this.value);
+    if (!got.ok) {
+      pushLog({ msg: "That seed didn't read.", color: MUTE });
+      return;
+    }
+    if (sim.bleb.name === got.name && sim.bleb.genome.join(",") === got.g.join(",")) {
+      pushLog({ msg: "That seed is this norn.", color: MUTE });
+      return;
+    }
+    showOffer({ kind: "seed", name: got.name, g: got.g }, sim.bleb.name, got.name);
+  });
+
+  document.getElementById("offer-keep").addEventListener("click", function () {
+    hideOffer();
+    persist(true);
+    pushLog({ msg: sim.bleb.name + " stays.", color: GOOD });
+    render();
+  });
+
+  document.getElementById("offer-bring").addEventListener("click", function () {
+    if (!pending) return;
+    var kind = pending;
+    hideOffer();
+    if (kind.kind === "seed") {
+      var color = WebBleb.COLORS[kind.g[0] % WebBleb.COLORS.length];
+      pushLog(WebBleb.summon(sim, { name: kind.name, genes: kind.g, color: color }));
+    } else {
+      WebBleb.importState(sim, kind.packet);
+      pushLog({ msg: sim.bleb.name + " arrives from the link.", color: GOOD });
+    }
+    persist(true);
+    render();
+  });
+
+  window.addEventListener("pagehide", function () {
+    if (!holdLink) persist(true);
+  });
+
+  boot();
   setInterval(function () {
     var events = WebBleb.step(sim);
     for (var i = 0; i < events.length; i++) pushLog(events[i]);
     render();
+    persist(false);
   }, TICK_MS);
   render();
 })();

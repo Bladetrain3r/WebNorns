@@ -99,6 +99,11 @@
             </div>
           </div>
         </div>
+        <div class="offer" id="offer" hidden>
+          <p id="offer-text"></p>
+          <button type="button" class="choice" id="offer-keep">Keep</button>
+          <button type="button" class="choice bring" id="offer-bring">Bring in</button>
+        </div>
         <div class="status" id="status">Bleb is looking around.</div>
       </div>
       <div class="log-card">
@@ -139,7 +144,14 @@
         <span class="icon" style="background:#e7f6ee">🥚</span>
         <span><span class="action-label">Hatch</span><span class="action-desc">a new random norn</span></span>
       </button>
-      <p class="note">Born with the norn, not a stat button. Park and Beach stay shut.</p>
+      <button type="button" class="action" id="btn-share">
+        <span class="icon" style="background:#e7eef8">🔖</span>
+        <span><span class="action-label">Bookmark / share</span><span class="action-desc">copy the link</span></span>
+      </button>
+      <label class="seed-label" for="seed-code">Seed
+        <input id="seed-code" class="seed" autocomplete="off" spellcheck="false" placeholder="a few words">
+      </label>
+      <p class="note" id="share-note">The link carries this norn. The seed is name and genome. Park and Beach stay shut.</p>
     </aside>
   </div>
 </div>
@@ -150,6 +162,7 @@
 <script src="js/carry.js"></script>
 <script src="js/life.js"></script>
 <script src="js/bleb.js"></script>
+<script src="js/link.js"></script>
 <script src="js/ui.js"></script>
 </body>
 </html>
