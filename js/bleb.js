@@ -5,10 +5,12 @@
   var World = root.WebWorld || (typeof require === "function" ? require("./world.js") : null);
   var Carry = root.WebCarry || (typeof require === "function" ? require("./carry.js") : null);
   var Life = root.WebLife || (typeof require === "function" ? require("./life.js") : null);
-  var api = factory(Chem, World, Carry, Life);
+  var Genome = root.WebGenome || (typeof require === "function" ? require("./genome.js") : null);
+  var Face = root.WebFace || (typeof require === "function" ? require("./face.js") : null);
+  var api = factory(Chem, World, Carry, Life, Genome, Face);
   if (typeof module === "object" && module.exports) module.exports = api;
   else root.WebBleb = api;
-})(typeof globalThis !== "undefined" ? globalThis : this, function (Chem, World, Carry, Life) {
+})(typeof globalThis !== "undefined" ? globalThis : this, function (Chem, World, Carry, Life, Genome, Face) {
   "use strict";
 
   var REACH = 10;
@@ -40,25 +42,9 @@
 
   // Starting body, not a keeper action. Needs read out near the middle of the bars.
   var BIRTH = { hunger: 120, boredom: 90, loneliness: 88, sleepiness: 74 };
-
-  function defaultTraits() {
-    // Seam: hatch will scale these. They change salience and thresholds, never drives.
-    return {
-      salience: { food: 1, ball: 1, nest: 1, hand: 1 },
-      // Ranch pressure is 1.0 per biotick. This page ticks every 0.7s, so the
-// temperament is lower or every drive would rail inside a minute.
-pressure: { hunger: 0.35, boredom: 0.35, loneliness: 0.25, sleepiness: 0.22 },
-      refuseEatBelow: 48,
-      playMinBoredom: 36,
-      tiredIgnorePlay: 185,
-      lonelyIgnorePlay: 200,
-      sleepMin: 50,
-      companyMin: 32,
-      recoilHeat: 220,
-      noveltyFromPet: 8,
-      comfort: { low: 76, high: 178 }
-    };
-  }
+  var NAMES = ["Bleb", "Pip", "Mote", "Nub", "Peb", "Dot", "Lumen", "Sprout", "Puff", "Wisp", "Nim", "Bub"];
+  var COLORS = ["#f8a8c6", "#9cd0ee", "#a8dcb0", "#f6c66a", "#c3aef0", "#f5a98f", "#8fd9d0"];
+  var SALIENCE = { hunger: "food", boredom: "ball", sleepiness: "nest", loneliness: "hand" };
 
   function mulberry32(seed) {
     var a = seed >>> 0;
@@ -70,9 +56,11 @@ pressure: { hunger: 0.35, boredom: 0.35, loneliness: 0.25, sleepiness: 0.22 },
     };
   }
 
-  function createBleb() {
+  function createBleb(opts) {
+    opts = opts || {};
+    var genes = Genome.normalize(opts.genes || Genome.neutral());
+    var traits = Genome.express(genes);
     var body = new Chem.Body();
-    var traits = defaultTraits();
     var key;
     for (key in traits.pressure) {
       if (Object.prototype.hasOwnProperty.call(traits.pressure, key)) {
@@ -85,8 +73,9 @@ pressure: { hunger: 0.35, boredom: 0.35, loneliness: 0.25, sleepiness: 0.22 },
     body.conc[Chem.SLEEPINESS] = BIRTH.sleepiness;
     body.conc[Chem.HEAT] = Math.round(50 * 255 / 100);
     return {
-      name: "Bleb",
-      color: "#f8a8c6",
+      name: opts.name || "Bleb",
+      color: opts.color || "#f8a8c6",
+      genome: genes,
       body: body,
       traits: traits,
       x: 30,
@@ -97,23 +86,45 @@ pressure: { hunger: 0.35, boredom: 0.35, loneliness: 0.25, sleepiness: 0.22 },
       heatAcc: 0,
       flags: { hot: false, cold: false },
       justWoke: false,
-      born: Date.now()
+      born: opts.born || Date.now()
     };
+  }
+
+  function rollBleb(rng) {
+    return createBleb({
+      genes: Genome.roll(rng),
+      name: NAMES[Math.floor(rng() * NAMES.length)],
+      color: COLORS[Math.floor(rng() * COLORS.length)]
+    });
   }
 
   function createSim(opts) {
     opts = opts || {};
     var seed = opts.seed == null ? (Date.now() % 1000000000) : opts.seed;
+    var rng = mulberry32(seed);
+    var bleb = opts.hatch ? rollBleb(rng) : createBleb({ genes: opts.genes, name: opts.name, color: opts.color });
     return {
       world: World.createWorld(),
-      bleb: createBleb(),
-      rng: mulberry32(seed),
+      bleb: bleb,
+      rng: rng,
       noise: opts.noise == null ? 0.08 : opts.noise,
       // "stasis" is the default life. "mortal" is not registered; unknown
       // names fall back to stasis, so nothing here ends the creature.
       lifecycle: "stasis",
       phase: "awake"
     };
+  }
+
+  // A new creature at birth chemistry. The room's air stays; the objects do not.
+  function hatch(sim) {
+    var ambient = sim.world.ambient;
+    var place = sim.world.place;
+    sim.world = World.createWorld();
+    sim.world.ambient = ambient;
+    sim.world.place = place;
+    sim.bleb = rollBleb(sim.rng);
+    sim.phase = "awake";
+    return { msg: sim.bleb.name + " hatches. " + Genome.words(sim.bleb.genome) + ".", color: COLOR.good };
   }
 
   function clampX(x) {
@@ -189,7 +200,8 @@ pressure: { hunger: 0.35, boredom: 0.35, loneliness: 0.25, sleepiness: 0.22 },
     var bestScore = -1;
     for (var i = 0; i < options.length; i++) {
       var opt = options[i];
-      var score = drives[opt.drive] / 255 + (opt.drive === top ? 0.75 : 0);
+      var sal = traits.salience[SALIENCE[opt.drive]] || 1;
+      var score = (drives[opt.drive] / 255) * sal + (opt.drive === top ? 0.75 : 0);
       if (score > bestScore) { bestScore = score; best = opt; }
     }
     return best;
@@ -366,19 +378,20 @@ pressure: { hunger: 0.35, boredom: 0.35, loneliness: 0.25, sleepiness: 0.22 },
   }
 
   function feltEdges(sim, events) {
-    var pct = Math.round(sim.bleb.body.conc[Chem.HEAT] * 100 / 255);
+    var heat = sim.bleb.body.conc[Chem.HEAT];
+    var band = sim.bleb.traits.comfort;
     var flags = sim.bleb.flags;
     var name = sim.bleb.name;
-    if (pct > 70 && !flags.hot) {
+    if (heat > band.high && !flags.hot) {
       flags.hot = true;
       events.push({ msg: name + " pants. The room is too warm.", color: COLOR.bad });
     }
-    if (pct < 62) flags.hot = false;
-    if (pct < 30 && !flags.cold) {
+    if (heat < band.high - 20) flags.hot = false;
+    if (heat < band.low && !flags.cold) {
       flags.cold = true;
       events.push({ msg: name + " shivers in the cool air.", color: COLOR.cold });
     }
-    if (pct > 38) flags.cold = false;
+    if (heat > band.low + 20) flags.cold = false;
   }
 
   function applyLife(sim, events) {
@@ -435,102 +448,6 @@ pressure: { hunger: 0.35, boredom: 0.35, loneliness: 0.25, sleepiness: 0.22 },
     return events;
   }
 
-  function joinAnd(parts) {
-    if (parts.length === 0) return "";
-    if (parts.length === 1) return parts[0];
-    if (parts.length === 2) return parts[0] + " and " + parts[1];
-    return parts.slice(0, -1).join(", ") + ", and " + parts[parts.length - 1];
-  }
-
-  function moodOf(body) {
-    if (body.asleep > 0) return { key: "sleeping", label: "sleeping", emoji: "😴" };
-    var d = body.drives();
-    var n = body.needs();
-    if (d.loneliness > 175 && n.fun < 50) return { key: "lonely", label: "feeling lonely", emoji: "🥺" };
-    var avg = (n.hunger + n.energy + n.fun) / 3;
-    if (avg > 70) return { key: "happy", label: "happy", emoji: "😊" };
-    if (avg > 50) return { key: "content", label: "content", emoji: "🙂" };
-    if (avg > 30) return { key: "grumpy", label: "grumpy", emoji: "😒" };
-    if (avg > 10) return { key: "miserable", label: "miserable", emoji: "😞" };
-    return { key: "wilting", label: "wilting", emoji: "🫠" };
-  }
-
-  function statusLine(sim) {
-    var name = sim.bleb.name;
-    var body = sim.bleb.body;
-    if (body.asleep > 0) return name + " is curled up, asleep.";
-    if (sim.bleb.justWoke) return name + " blinks awake.";
-    if (sim.bleb.verb === "play") return name + " is batting the ball.";
-    if (sim.bleb.verb === "eat" && sim.bleb.detail === "vomit") return name + " spat the food out.";
-    if (sim.bleb.verb === "eat") return name + " is chewing.";
-    if (body.conc[Chem.FOOD] > 12) return name + " is digesting.";
-    if (sim.bleb.verb === "nuzzle") return name + " leans into the touch.";
-    if (sim.bleb.verb === "move") return name + " waddles across the rug.";
-    var d = body.drives();
-    var temp = Math.round(body.conc[Chem.HEAT] * 100 / 255);
-    var bits = [];
-    if (d.loneliness > 170) bits.push("lonely");
-    if (d.hunger > 190) bits.push("starving");
-    else if (d.hunger > 120) bits.push("hungry");
-    else if (d.hunger < 40) bits.push("stuffed");
-    if (d.sleepiness > 190) bits.push("exhausted");
-    else if (d.sleepiness > 130) bits.push("tired");
-    if (d.boredom > 170) bits.push("bored");
-    if (temp > 70) bits.push("too warm");
-    else if (temp < 30) bits.push("cold");
-    if (!bits.length) return name + " is doing okay.";
-    return name + " is " + joinAnd(bits) + ".";
-  }
-
-  function present(sim) {
-    var bleb = sim.bleb;
-    var body = bleb.body;
-    var needs = body.needs();
-    var drives = body.drives();
-    var mood = moodOf(body);
-    var temp = Math.round(body.conc[Chem.HEAT] * 100 / 255);
-    var mouth = "small";
-    if (body.asleep > 0) mouth = "tiny";
-    else if (bleb.verb === "play" || mood.key === "happy") mouth = "big";
-    else if (mood.key === "grumpy") mouth = "flat";
-    else if (mood.key === "lonely" || mood.key === "miserable" || mood.key === "wilting") mouth = "frown";
-    var obj = function (o) { return o ? o.x : null; };
-    return {
-      name: bleb.name,
-      color: bleb.color,
-      born: bleb.born,
-      x: bleb.x,
-      ambient: sim.world.ambient,
-      place: sim.world.place,
-      mood: mood,
-      status: statusLine(sim),
-      verb: bleb.verb,
-      bars: {
-        hunger: needs.hunger,
-        energy: needs.energy,
-        fun: needs.fun,
-        social: needs.social,
-        temp: temp
-      },
-      face: {
-        eyes: body.asleep > 0 ? "sleep" : "open",
-        mouth: mouth,
-        tear: mood.key === "lonely" || mood.key === "miserable" || mood.key === "wilting" || drives.loneliness > 175,
-        sweat: temp > 70,
-        shiver: temp < 30,
-        cheeks: mood.key === "happy" || bleb.verb === "play",
-        zzz: body.asleep > 0,
-        anim: body.asleep > 0 ? "sleep" : (bleb.verb === "play" ? "play" : "idle")
-      },
-      objects: {
-        food: obj(sim.world.food),
-        ball: obj(sim.world.ball),
-        nest: obj(sim.world.nest),
-        hand: obj(sim.world.hand)
-      }
-    };
-  }
-
   return {
     REACH: REACH,
     SEE: SEE,
@@ -538,11 +455,12 @@ pressure: { hunger: 0.35, boredom: 0.35, loneliness: 0.25, sleepiness: 0.22 },
     IDLE_BELOW: IDLE_BELOW,
     STARVE: STARVE,
     BIRTH: BIRTH,
-    defaultTraits: defaultTraits,
+    defaultTraits: function () { return Genome.express(Genome.neutral()); },
     createBleb: createBleb,
     createSim: createSim,
+    hatch: hatch,
     step: step,
-    present: present,
+    present: Face.present,
     senseWorld: senseWorld,
     exportState: Carry.exportState,
     importState: Carry.importState
