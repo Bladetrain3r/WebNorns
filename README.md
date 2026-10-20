@@ -24,7 +24,13 @@ An earlier prototype added to the bars inside the buttons. That path is gone.
 
 Each norn carries a seven-byte genome: appetite, playfulness, sociability, warmth, metabolism, sleepiness, and a quiet or chatty voice. 128 on a gene is the even temperament. The genes change how strongly a pellet, a ball, a hand, or the nest pulls, how fast the drives weather in, and when the norn refuses. A dainty norn leaves food that a greedy one eats. Hatch starts a new norn at birth chemistry and leaves the room's temperature alone. It does not edit the norn that was already there.
 
-The creature packet stores that genome as `g`, seven numbers from 0 to 255, so a later bookmark can carry it in the URL. The expressed trait table is derived, not stored.
+The creature packet stores that genome as `g`, seven numbers from 0 to 255. The expressed trait table is derived, not stored.
+
+## Bookmark
+
+The page keeps the norn in `localStorage`. The address fragment is a portable copy of the same packet: name, genome, birth, and the chemistry, versioned (`n1`) and checksummed. It updates every few seconds with `replaceState`, so a bookmark or a copied link carries the norn and the room stays behind. Opening that link loads the norn when this browser has none. If the same norn is already here, the copy that has lived longer stays, so an old bookmark does not rewind a later save. If a different norn is saved, the page asks before swapping. A bad or old fragment is ignored.
+
+Bookmark / share copies the link. The seed under it is a few words for the name and genome only. Reading a seed aloud starts that norn at birth chemistry. It does not type numbers into the drives.
 
 ## Run it
 
@@ -44,7 +50,7 @@ Bleb ticks about once every 0.7s. Feed, and watch whether they walk to the pelle
 node js/checks.js
 ```
 
-Or open `test.html` in a browser. The checks cover decay and reaction arithmetic (the same numbers as the Creatures-style reference), that a sparse chemistry matches a full one, that Feed / Play / Sleep / Pet / Warm / Cool do not write the body, and that the genome changes those choices.
+Or open `test.html` in a browser. The checks cover decay and reaction arithmetic (the same numbers as the Creatures-style reference), that a sparse chemistry matches a full one, that Feed / Play / Sleep / Pet / Warm / Cool do not write the body, that the genome changes those choices, and that a link round-trips while a damaged fragment does not.
 
 ## Files
 
@@ -53,8 +59,10 @@ Or open `test.html` in a browser. The checks cover decay and reaction arithmetic
 - `js/world.js` — pellet, ball, nest, hand, ambient heat
 - `js/bleb.js` — sense, choose, act, hatch
 - `js/face.js` — mood, status, and the trait line
+- `js/link.js` — fragment, checksum, seed words, local save
 - `js/ui.js` — the page
 - `docs/DENIZENS.md`, `docs/DESIGN.md` — the design notes this slice follows
-- `docs/AUDIENCE_AND_LIFECYCLE.md`, `docs/WEEKLY_ROUTINE.md` — later notes, not built
+- `docs/AUDIENCE_AND_LIFECYCLE.md` — bookmark and lifecycle direction
+- `docs/WEEKLY_ROUTINE.md` — later note, not built
 
-Other rooms stay a seam (`place` on the world). `exportState` / `importState` pack the creature, including `g`, and leave the room behind. Each tick asks a lifecycle policy. The only policy is stasis, which does not end the creature. Mortality is not plugged in. A child genome can be rolled from a parent; there is no mate button yet.
+Other rooms stay a seam (`place` on the world). `exportState` / `importState` pack the creature, including `g`, and leave the room behind. The fragment carries that packet. Each tick asks a lifecycle policy. The only policy is stasis, which does not end the creature. Mortality is not plugged in. A child genome can be rolled from a parent; there is no mate button yet.

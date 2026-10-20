@@ -8,6 +8,7 @@
     var world = api.world;
     var bleb = api.bleb;
     var genome = api.genome;
+    var link = api.link;
     var lines = [];
     var ok = 0;
     var fail = 0;
@@ -342,12 +343,79 @@
     check("hatch rolls a genome", rolledOk);
     check("traits show as words, not bars", bleb.present(egg).traitsText && bleb.present(bleb.createSim({ seed: 1, noise: 0 })).traitsText === "even-tempered");
 
+    var carriedLink = fresh({ hunger: 180, boredom: 40, loneliness: 55, sleepiness: 70, x: 44 });
+    carriedLink.bleb.name = "Pip";
+    carriedLink.bleb.born = 1700000000000;
+    carriedLink.bleb.color = "#9cd0ee";
+    carriedLink.bleb.genome = [9, 8, 7, 6, 5, 4, 3];
+    carriedLink.bleb.traits = genome.express(carriedLink.bleb.genome);
+    carriedLink.world.ambient = 61;
+    carriedLink.world.food = { kind: "food", x: 10, age: 0, life: 10, bites: 1 };
+    var snap = bleb.exportState(carriedLink);
+    var frag = link.encodeFragment(snap);
+    var opened = link.decodeFragment("#" + frag);
+    var host = bleb.createSim({ seed: 3, noise: 0 });
+    host.world.ambient = 61;
+    host.world.food = { kind: "food", x: 10, age: 0, life: 10, bites: 1 };
+    bleb.importState(host, opened.packet);
+    check("a link round-trips the saved body", opened.ok && opened.packet.v === 1 && host.bleb.name === "Pip" && host.bleb.born === 1700000000000 && host.bleb.genome.join() === "9,8,7,6,5,4,3" && host.bleb.body.conc[chem.HUNGER] === carriedLink.bleb.body.conc[chem.HUNGER] && host.bleb.x === 44 && host.bleb.body.biotick === carriedLink.bleb.body.biotick);
+    check("a link leaves the room behind", host.world.ambient === 61 && host.world.food && !opened.packet.world && frag.indexOf("n1.") === 0);
+
+    function spoil(text) {
+      var at = text.indexOf(".") + 4;
+      var ch = text.charAt(at) === "a" ? "b" : "a";
+      return text.slice(0, at) + ch + text.slice(at + 1);
+    }
+    var damaged = link.decodeFragment(spoil(frag));
+    var old = link.decodeFragment("#n0.aaaa.00000000");
+    var junk = link.decodeFragment("#nope");
+    var blank = link.decodeFragment("");
+    var future = link.decodeFragment(link.encodeFragment({ v: 2, name: "Pip", g: [1, 2, 3, 4, 5, 6, 7], born: 1, body: { chem: {} } }));
+    var wild = link.decodeFragment(link.encodeFragment({ v: 1, name: "Pip", g: [1, 2, 3, 4, 5, 6, 7], born: 1, body: { chem: { 150: 999 } } }));
+    check("a damaged fragment is refused", !damaged.ok && damaged.reason === "checksum" && !old.ok && old.reason === "version" && !junk.ok && junk.reason === "version" && !blank.ok && blank.reason === "empty" && future.reason === "version" && wild.reason === "corrupt");
+
+    var code = link.encodeSeed({ name: "Pip", g: [9, 8, 7, 6, 5, 4, 3] });
+    var spoken = link.decodeSeed(code);
+    var said = code.split(" ");
+    said[2] = said[2] === said[0] ? said[1] : said[0];
+    var typo = link.decodeSeed(said.join(" "));
+    var custom = link.decodeSeed(link.encodeSeed({ name: "Ziggy", g: [128, 128, 128, 128, 128, 128, 128] }));
+    check("a seed round-trips name and genome", spoken.ok && spoken.name === "Pip" && spoken.g.join() === "9,8,7,6,5,4,3" && said.length === 7 && !spoken.body);
+    check("a mistyped seed is refused", !typo.ok && !link.decodeSeed("").ok && !link.decodeSeed("not-a-seed").ok);
+    check("a custom name still fits in a seed", custom.ok && custom.name === "Ziggy" && custom.g.join() === "128,128,128,128,128,128,128");
+    check("seed names match hatch names", link.NAMES.join() === bleb.NAMES.join());
+
+    var memory = { bag: {}, getItem: function (k) { return this.bag[k] == null ? null : this.bag[k]; }, setItem: function (k, v) { this.bag[k] = String(v); } };
+    link.saveLocal(memory, snap);
+    var kept = link.loadLocal(memory);
+    check("local storage keeps the packet", kept && kept.name === "Pip" && kept.g.join() === "9,8,7,6,5,4,3" && kept.body.chem[chem.HUNGER] === snap.body.chem[chem.HUNGER]);
+    check("a broken local save is ignored", link.loadLocal({ getItem: function () { return "{"; } }) === null);
+
+    var resident = { name: "Mote", born: 42, g: [1, 1, 1, 1, 1, 1, 1] };
+    check("a link for someone else asks first", link.decideBoot(resident, opened).action === "offer" && link.decideBoot(null, opened).action === "restore" && link.decideBoot(resident, opened).link.name === "Pip");
+    var ahead = JSON.parse(JSON.stringify(snap));
+    ahead.body.tick = (snap.body.tick || 0) + 40;
+    var aheadLink = { ok: true, packet: JSON.parse(JSON.stringify(ahead)) };
+    aheadLink.packet.body.tick = ahead.body.tick + 40;
+    check("an older bookmark keeps the newer local norn", link.decideBoot(ahead, opened).action === "restore" && link.decideBoot(ahead, opened).from === "local" && link.decideBoot(ahead, opened).packet.body.tick === ahead.body.tick && link.sameNorn(ahead, opened.packet));
+    check("a newer link updates the same norn", link.decideBoot(snap, aheadLink).from === "link" && link.decideBoot(snap, aheadLink).packet.body.tick === aheadLink.packet.body.tick);
+    check("a tie keeps the norn already here", link.decideBoot(snap, opened).from === "local");
+    check("a link restores a norn on a fresh browser", link.decideBoot(null, opened).action === "restore" && link.decideBoot(null, opened).from === "link" && link.decideBoot(null, opened).packet.name === "Pip");
+    check("an empty address keeps the local norn", link.decideBoot(snap, blank).action === "restore" && link.decideBoot(snap, blank).from === "local");
+    check("a bad link does not replace a saved norn", link.decideBoot(snap, damaged).from === "local" && link.decideBoot(snap, damaged).warn === "checksum" && link.decideBoot(null, damaged).action === "hatch");
+    check("the fragment waits before rewriting history", link.due(3999, 0, false) === false && link.due(4000, 0, false) === true && link.due(10, 0, true) === true && resident.name === "Mote");
+
+    var seeded = fresh({ hunger: 255, boredom: 10, loneliness: 10, sleepiness: 10, x: 70, food: 70 });
+    seeded.world.ambient = 63;
+    bleb.summon(seeded, { name: spoken.name, genes: spoken.g, color: "#9cd0ee" });
+    check("a seed arrives as birth chemistry", seeded.bleb.name === "Pip" && seeded.bleb.body.conc[chem.HUNGER] === bleb.BIRTH.hunger && seeded.world.food === null && seeded.world.ambient === 63);
+
     if (fs && path) {
       var worldSrc = fs.readFileSync(path.join(__dirname, "world.js"), "utf8");
       var uiSrc = fs.readFileSync(path.join(__dirname, "ui.js"), "utf8");
       check("world.js never emits or touches concentrations", !/\.emit\(/.test(worldSrc) && !/\.conc\[/.test(worldSrc) && !/asleep/.test(worldSrc));
       check("ui.js never emits or touches concentrations", !/\.emit\(/.test(uiSrc) && !/\.conc\[/.test(uiSrc));
-      var names = ["chem.js", "world.js", "genome.js", "face.js", "carry.js", "life.js", "bleb.js", "ui.js", "checks.js"];
+      var names = ["chem.js", "world.js", "genome.js", "face.js", "carry.js", "life.js", "bleb.js", "link.js", "ui.js", "checks.js"];
       var tooBig = "";
       for (var f = 0; f < names.length; f++) {
         var linesIn = fs.readFileSync(path.join(__dirname, names[f]), "utf8").split("\n").length;
@@ -366,13 +434,14 @@
       chem: require("./chem.js"),
       world: require("./world.js"),
       bleb: require("./bleb.js"),
-      genome: require("./genome.js")
+      genome: require("./genome.js"),
+      link: require("./link.js")
     }, require("fs"), require("path"));
     for (var i = 0; i < result.lines.length; i++) console.log(result.lines[i]);
     process.exit(result.fail ? 1 : 0);
   } else if (typeof window !== "undefined") {
     window.runWebagotchiChecks = function () {
-      return runChecks({ chem: window.WebChem, world: window.WebWorld, bleb: window.WebBleb, genome: window.WebGenome }, null, null);
+      return runChecks({ chem: window.WebChem, world: window.WebWorld, bleb: window.WebBleb, genome: window.WebGenome, link: window.WebLink }, null, null);
     };
   }
 })(typeof globalThis !== "undefined" ? globalThis : this);

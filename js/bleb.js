@@ -116,15 +116,25 @@
   }
 
   // A new creature at birth chemistry. The room's air stays; the objects do not.
-  function hatch(sim) {
+  function placeNew(sim, bleb) {
     var ambient = sim.world.ambient;
-    var place = sim.world.place;
+    var where = sim.world.place;
     sim.world = World.createWorld();
     sim.world.ambient = ambient;
-    sim.world.place = place;
-    sim.bleb = rollBleb(sim.rng);
+    sim.world.place = where;
+    sim.bleb = bleb;
     sim.phase = "awake";
+  }
+
+  function hatch(sim) {
+    placeNew(sim, rollBleb(sim.rng));
     return { msg: sim.bleb.name + " hatches. " + Genome.words(sim.bleb.genome) + ".", color: COLOR.good };
+  }
+
+  // Name and genome only, at birth chemistry. A seed is not a mid-life body.
+  function summon(sim, opts) {
+    placeNew(sim, createBleb(opts || {}));
+    return { msg: sim.bleb.name + " takes the rug. " + Genome.words(sim.bleb.genome) + ".", color: COLOR.good };
   }
 
   function clampX(x) {
@@ -455,10 +465,13 @@
     IDLE_BELOW: IDLE_BELOW,
     STARVE: STARVE,
     BIRTH: BIRTH,
+    NAMES: NAMES,
+    COLORS: COLORS,
     defaultTraits: function () { return Genome.express(Genome.neutral()); },
     createBleb: createBleb,
     createSim: createSim,
     hatch: hatch,
+    summon: summon,
     step: step,
     present: Face.present,
     senseWorld: senseWorld,
