@@ -393,7 +393,14 @@
 
     var resident = { name: "Mote", born: 42, g: [1, 1, 1, 1, 1, 1, 1] };
     check("a link for someone else asks first", link.decideBoot(resident, opened).action === "offer" && link.decideBoot(null, opened).action === "restore" && link.decideBoot(resident, opened).link.name === "Pip");
-    check("the same norn comes back from the link", link.decideBoot(snap, opened).action === "restore" && link.decideBoot(snap, opened).from === "link" && link.sameNorn(snap, opened.packet));
+    var ahead = JSON.parse(JSON.stringify(snap));
+    ahead.body.tick = (snap.body.tick || 0) + 40;
+    var aheadLink = { ok: true, packet: JSON.parse(JSON.stringify(ahead)) };
+    aheadLink.packet.body.tick = ahead.body.tick + 40;
+    check("an older bookmark keeps the newer local norn", link.decideBoot(ahead, opened).action === "restore" && link.decideBoot(ahead, opened).from === "local" && link.decideBoot(ahead, opened).packet.body.tick === ahead.body.tick && link.sameNorn(ahead, opened.packet));
+    check("a newer link updates the same norn", link.decideBoot(snap, aheadLink).from === "link" && link.decideBoot(snap, aheadLink).packet.body.tick === aheadLink.packet.body.tick);
+    check("a tie keeps the norn already here", link.decideBoot(snap, opened).from === "local");
+    check("a link restores a norn on a fresh browser", link.decideBoot(null, opened).action === "restore" && link.decideBoot(null, opened).from === "link" && link.decideBoot(null, opened).packet.name === "Pip");
     check("an empty address keeps the local norn", link.decideBoot(snap, blank).action === "restore" && link.decideBoot(snap, blank).from === "local");
     check("a bad link does not replace a saved norn", link.decideBoot(snap, damaged).from === "local" && link.decideBoot(snap, damaged).warn === "checksum" && link.decideBoot(null, damaged).action === "hatch");
     check("the fragment waits before rewriting history", link.due(3999, 0, false) === false && link.due(4000, 0, false) === true && link.due(10, 0, true) === true && resident.name === "Mote");

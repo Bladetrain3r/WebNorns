@@ -28,7 +28,7 @@ The creature packet stores that genome as `g`, seven numbers from 0 to 255. The 
 
 ## Bookmark
 
-The page keeps the norn in `localStorage`. The address fragment is a portable copy of the same packet: name, genome, birth, and the chemistry, versioned (`n1`) and checksummed. It updates every few seconds with `replaceState`, so a bookmark or a copied link carries the norn and the room stays behind. Opening that link loads the saved body. If this browser already has a different norn saved, the page asks before swapping. A bad or old fragment is ignored.
+The page keeps the norn in `localStorage`. The address fragment is a portable copy of the same packet: name, genome, birth, and the chemistry, versioned (`n1`) and checksummed. It updates every few seconds with `replaceState`, so a bookmark or a copied link carries the norn and the room stays behind. Opening that link loads the norn when this browser has none. If the same norn is already here, the copy that has lived longer stays, so an old bookmark does not rewind a later save. If a different norn is saved, the page asks before swapping. A bad or old fragment is ignored.
 
 Bookmark / share copies the link. The seed under it is a few words for the name and genome only. Reading a seed aloud starts that norn at birth chemistry. It does not type numbers into the drives.
 

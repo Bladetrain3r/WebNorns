@@ -229,13 +229,25 @@
     return !!(a && b && a.born === b.born && a.name === b.name);
   }
 
-  // A link restores its norn. A different norn already saved here is a choice.
+  // Lived time. exportState stores the body's biotick as body.tick.
+  function progress(packet) {
+    var tick = packet && packet.body && packet.body.tick;
+    var n = Number(tick);
+    return n === n && isFinite(n) ? n : 0;
+  }
+
+  // Nothing saved here: the link is the norn. The same norn: the copy that
+  // has lived longer wins, so an old bookmark does not rewind a later save.
+  // A different norn already saved here is a choice.
   function decideBoot(stored, incoming) {
     if (incoming && incoming.ok) {
       if (stored && !sameNorn(stored, incoming.packet)) {
         return { action: "offer", local: stored, link: incoming.packet };
       }
-      return { action: "restore", packet: incoming.packet, from: "link" };
+      if (!stored || progress(incoming.packet) > progress(stored)) {
+        return { action: "restore", packet: incoming.packet, from: "link" };
+      }
+      return { action: "restore", packet: stored, from: "local" };
     }
     var reason = incoming && incoming.reason;
     if (reason && reason !== "empty") {
